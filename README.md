@@ -6,12 +6,18 @@ Grab French television listings from SFR STB EPG sources in XMLTV format.
 
 Mohamed El Morabity
 
+## Requirements
+
+The plugin is written in Python 3. It requires the following libraries:
+
+* [lxml](https://pypi.python.org/pypi/lxml)
+* [pytz](https://pypi.python.org/pypi/pytz)
+
 ## Usage
 
     tv_grab_fr_sfr.py --help
     tv_grab_fr_sfr.py [--config-file FILE] --configure
     tv_grab_fr_sfr.py [--config-file FILE] [--output FILE] [--days N] [--offset N] [--quiet] [--debug]
-	tv_grab_fr_sfr.py --list-channels [--config-file FILE] [--output FILE] [--quiet] [--debug]
     tv_grab_fr_sfr.py --description
     tv_grab_fr_sfr.py --capabilities
     tv_grab_fr_sfr.py --version
@@ -41,10 +47,6 @@ Grab `N` days. The default is 1.
     --offset N
 
 Start `N` days in the future. The default is to start from now on (= 0).
-
-    --list-channels
-
-Output a list of all channels that data is available. The list is in XMLTV format.
 
     --quiet
 

@@ -1,25 +1,21 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-# Copyright 2017 Mohamed El Morabity
+# Copyright 2017-2018 Mohamed El Morabity
 #
-# This program is free software: you can redistribute it and/or modify it under
-# the terms of the GNU General Public License as published by the Free Software
-# Foundation, either version 3 of the License, or (at your option) any later
-# version.
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU
+# General Public License as published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
 #
-# This program is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
-# details.
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+# even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License along with
-# this program. If not, see <http://www.gnu.org/licenses/>.
+# You should have received a copy of the GNU General Public License along with this program. If not,
+# see <http://www.gnu.org/licenses/>.
 
 
-"""tv_grab_fr_sfr.py - Grab French television listings from SFR STB EPG sources
-in XMLTV format.
-"""
+"""tv_grab_fr_sfr.py - Grab French television listings from SFR STB EPG sources in XMLTV format."""
 
 import argparse
 import datetime
@@ -34,18 +30,21 @@ from urllib.request import Request
 
 import lxml.etree
 from lxml.etree import Element, ElementTree, SubElement
+import pytz.reference
 
 
 class SFRXMLTVGrabber:
-    """Implements grabbing and processing functionalities required to generate
-    XMLTV data from SFR STB EPG sources.
+    """Implements grabbing and processing functionalities required to generate XMLTV data from SFR
+    STB EPG sources.
     """
 
     _API_URL = 'http://data.stb.neuf.fr/epg/data/xmltv'
-    _API_USER_AGENT = 'Mozilla/4.0 (compatible; MSIE 5.01; Windows 98; ' \
-                      'Linux 2.4.32-tango2) [Netgem; 4.7.13; i-Player; ' \
-                      'netbox; neuftelecom]; neuftelecom;'
+    _API_USER_AGENT = 'Mozilla/4.0 (compatible; MSIE 5.01; Windows 98; Linux 2.4.32-tango2) ' \
+                      '[Netgem; 4.7.13; i-Player; netbox; neuftelecom]; neuftelecom;'
     _XMLTV_DATETIME_FORMAT = '%Y%m%d%H%M%S %z'
+
+    _SFR_TIMEZONE = pytz.timezone('Europe/Paris')
+    _SFR_START_TIME = datetime.time(5, 0)
 
     _MAX_DAYS = 14
 
@@ -93,9 +92,7 @@ class SFRXMLTVGrabber:
         return xmltv_id
 
     def _retrieve_available_channels(self):
-        """Retrieve all available channels, identified by their XMLTV ID, from
-        SFR.
-        """
+        """Retrieve all available channels, identified by their XMLTV ID, from SFR."""
 
         self._logger.debug('Getting available channels')
         # Extract channels from today's program
@@ -107,15 +104,12 @@ class SFRXMLTVGrabber:
             display_name = channel.findtext('display-name')
             if sfr_id is not None and display_name is not None:
                 xmltv_id = self._sfr_to_xmltv_id(sfr_id)
-                channels[xmltv_id] = {'sfr_id': sfr_id,
-                                      'display_name': display_name}
+                channels[xmltv_id] = {'sfr_id': sfr_id, 'display_name': display_name}
 
         return channels
 
     def get_available_channels(self):
-        """Return the list of all available channels from SFR, as a
-        dictionary.
-        """
+        """Return the list of all available channels from SFR, as a dictionary."""
 
         return self._channels
 
@@ -124,16 +118,12 @@ class SFRXMLTVGrabber:
 
         etsi_category = self._ETSI_PROGRAM_CATEGORIES.get(category)
         if etsi_category is None:
-            self._logger.warning(
-                'SFR category %s has no defined ETSI equivalent', category
-            )
+            self._logger.warning('SFR category %s has no defined ETSI equivalent', category)
 
         return etsi_category
 
     def _parse_channel_xmltv(self, xmltv_id):
-        """Convert a channel identified by its XMLTV ID to a XMLTV Element
-        object.
-        """
+        """Convert a channel identified by its XMLTV ID to a XMLTV Element object."""
 
         display_name = self._channels[xmltv_id]['display_name']
 
@@ -144,8 +134,7 @@ class SFRXMLTVGrabber:
         return channel_xml
 
     def _parse_program_xmltv(self, sfr_xml):
-        """Convert a SFR program XML Element to a "real" XMLTV Element
-        object."""
+        """Convert a SFR program XML Element to a "real" XMLTV Element object."""
 
         program_xml = Element(
             'programme',
@@ -192,90 +181,80 @@ class SFRXMLTVGrabber:
         program_id = sfr_xml.get('id', '').strip()
         if program_id != '':
             url_xml = SubElement(program_xml, 'url')
-            url_xml.text = '{}/{}-{}'.format(self._PROGRAM_URL,
-                                             title,
-                                             program_id)
+            url_xml.text = '{}/{}-{}'.format(self._PROGRAM_URL, title, program_id)
 
         # Star rating
         star_rating_xml = sfr_xml.find('star-rating')
         if star_rating_xml is not None:
             star_rating = star_rating_xml.findtext('value', '').strip()
             if star_rating != '':
-                star_rating_xml = SubElement(program_xml, 'star-rating',
-                                             system='SFR')
+                star_rating_xml = SubElement(program_xml, 'star-rating', system='SFR')
                 star_rating_value_xml = SubElement(star_rating_xml, 'value')
                 star_rating_value_xml.text = star_rating
 
         return program_xml
 
-    def _get_xmltv_data(self, xmltv_ids, days=1, offset=0,
-                        channels_only=False):
+    def _get_xmltv_data(self, xmltv_ids, days=1, offset=0):
         """Get SFR program data in XMLTV format as XML ElementTree object."""
 
         if days + offset > self._MAX_DAYS:
-            self._logger.warning(
-                'Grabber can only fetch programs up to %i days in the future.',
-                self._MAX_DAYS
-            )
+            self._logger.warning('Grabber can only fetch programs up to %i days in the future.',
+                                 self._MAX_DAYS)
             days = min(self._MAX_DAYS - offset, self._MAX_DAYS)
 
-        root_xml = Element('tv',
-                           attrib={'source-info-name': 'SFR',
-                                   'source-info-url': 'http://tv.sfr.fr/epg',
-                                   'source-data-url': self._API_URL})
+        root_xml = Element('tv', attrib={'source-info-name': 'SFR',
+                                         'source-info-url': 'http://tv.sfr.fr/epg',
+                                         'source-data-url': self._API_URL})
         if self._generator is not None:
             root_xml.set('generator-info-name', self._generator)
         if self._generator_url is not None:
             root_xml.set('generator-info-url', self._generator_url)
 
-        first_day = datetime.date.today() + datetime.timedelta(days=offset)
+        start = datetime.datetime.combine(datetime.date.today(), datetime.time(0),
+                                          tzinfo=pytz.reference.LocalTimezone())
+        start = start + datetime.timedelta(days=offset)
+        stop = start + datetime.timedelta(days=days)
+
+        # Dates to fetch from the SFR API
+        sfr_fetch_dates = [start.date() + datetime.timedelta(days=d) for d in range(days)]
+        # SFR data for a given day contain programs starting between 5:00 AM and 4:59 AM the
+        # next day (Paris time)
+        if start < self._SFR_TIMEZONE.localize(datetime.datetime.combine(start,
+                                                                         self._SFR_START_TIME)):
+            sfr_fetch_dates.insert(0, start.date() - datetime.timedelta(days=1))
+        elif stop > self._SFR_TIMEZONE.localize(datetime.datetime.combine(stop,
+                                                                          self._SFR_START_TIME)):
+            sfr_fetch_dates.append(stop.date())
 
         programs_xml = []
-        if channels_only:
-            valid_xmltv_ids = xmltv_ids
-        else:
-            valid_xmltv_ids = []
-            # SFR data contain programs starting between 5:00 AM and 4:59 AM
-            # the next day. Get programs before the first selected day to get
-            # all programs for this day.
-            for day in range(-1, days):
-                date = (datetime.date.today() +
-                        datetime.timedelta(days=day + offset))
-                for sfr_program_xml in self._get_programs(date).iter(
-                        tag='programme'
-                ):
-                    # Only keep programs for selected channels
-                    sfr_id = sfr_program_xml.get('channel')
-                    if self._sfr_to_xmltv_id(sfr_id) not in xmltv_ids:
-                        continue
+        valid_xmltv_ids = set()
+        # SFR data contain programs starting between 5:00 AM and 4:59 AM the next day. Get
+        # programs before the first selected day to get all programs for this day.
+        for date in sfr_fetch_dates:
+            for sfr_program_xml in self._get_programs(date).iter(tag='programme'):
+                # Only keep programs for selected channels
+                sfr_id = sfr_program_xml.get('channel')
+                if self._sfr_to_xmltv_id(sfr_id) not in xmltv_ids:
+                    continue
 
-                    # Ignore programs ending before the first selected day
-                    if day == -1:
-                        stop = datetime.datetime.strptime(
-                            sfr_program_xml.get('stop'),
-                            self._XMLTV_DATETIME_FORMAT
-                        ).date()
-                        if stop < first_day:
-                            continue
+                program_xml = self._parse_program_xmltv(sfr_program_xml)
+                program_start = datetime.datetime.strptime(program_xml.get('start'),
+                                                           self._XMLTV_DATETIME_FORMAT)
+                program_stop = datetime.datetime.strptime(program_xml.get('stop'),
+                                                          self._XMLTV_DATETIME_FORMAT)
 
-                    # Ignore programs starting after the last day
-                    if day == days - 1:
-                        start = datetime.datetime.strptime(
-                            sfr_program_xml.get('start'),
-                            self._XMLTV_DATETIME_FORMAT
-                        ).date()
-                        if start > date:
-                            continue
+                # Skip programs outside the fetch period
+                if program_stop < start or program_start >= stop:
+                    continue
 
-                    program_xml = self._parse_program_xmltv(sfr_program_xml)
+                program_xml = self._parse_program_xmltv(sfr_program_xml)
 
-                    xmltv_id = program_xml.get('channel')
-                    if xmltv_id not in valid_xmltv_ids:
-                        valid_xmltv_ids.append(xmltv_id)
+                xmltv_id = program_xml.get('channel')
+                valid_xmltv_ids.add(xmltv_id)
 
-                    programs_xml.append(program_xml)
+                programs_xml.append(program_xml)
 
-        # Only keep channels which have programs actually
+        # Keep only channels which have programs actually in the XMLTV result
         for xmltv_id in valid_xmltv_ids:
             root_xml.append(self._parse_channel_xmltv(xmltv_id))
 
@@ -283,16 +262,13 @@ class SFRXMLTVGrabber:
 
         return ElementTree(root_xml)
 
-    def write_xmltv(self, xmltv_ids, output_file, days=1, offset=0,
-                    channels_only=False):
+    def write_xmltv(self, xmltv_ids, output_file, days=1, offset=0):
         """Grab SFR programs in XMLTV format and write them to file."""
 
         self._logger.debug('Writing XMLTV program to file %s', output_file)
 
-        xmltv_data = self._get_xmltv_data(xmltv_ids, days, offset,
-                                          channels_only)
-        xmltv_data.write(output_file, encoding='UTF-8', xml_declaration=True,
-                         pretty_print=True)
+        xmltv_data = self._get_xmltv_data(xmltv_ids, days, offset)
+        xmltv_data.write(output_file, encoding='UTF-8', xml_declaration=True, pretty_print=True)
 
 
 _PROGRAM = 'tv_grab_fr_sfr'
@@ -305,8 +281,7 @@ _CAPABILITIES = ['baseline', 'manualconfig']
 _DEFAULT_DAYS = 1
 _DEFAULT_OFFSET = 0
 
-_DEFAULT_CONFIG_FILE = os.path.join(os.environ['HOME'], '.xmltv',
-                                    _PROGRAM + '.conf')
+_DEFAULT_CONFIG_FILE = os.path.join(os.environ['HOME'], '.xmltv', _PROGRAM + '.conf')
 
 _DEFAULT_OUTPUT = '/dev/stdout'
 
@@ -338,37 +313,24 @@ def _parse_cli_args():
     )
     parser.add_argument('--description', action='store_true',
                         help='print the description for this grabber')
-    parser.add_argument('--version', action='store_true',
-                        help='show the version of this grabber')
+    parser.add_argument('--version', action='store_true', help='show the version of this grabber')
     parser.add_argument('--capabilities', action='store_true',
                         help='show the capabilities this grabber supports')
     parser.add_argument(
         '--configure', action='store_true',
-        help='generate the configuration file by asking the users which '
-             'channels to grab'
+        help='generate the configuration file by asking the users which channels to grab'
     )
-    parser.add_argument(
-        '--days', type=int, default=_DEFAULT_DAYS,
-        help='grab DAYS days of TV data (default: %(default)s)'
-    )
+    parser.add_argument('--days', type=int, default=_DEFAULT_DAYS,
+                        help='grab DAYS days of TV data (default: %(default)s)')
     parser.add_argument(
         '--offset', type=int, default=_DEFAULT_OFFSET,
-        help='grab TV data starting at OFFSET days in the future (default: '
-             '%(default)s)'
+        help='grab TV data starting at OFFSET days in the future (default: %(default)s)'
     )
-    parser.add_argument(
-        '--output', default=_DEFAULT_OUTPUT,
-        help='write the XML data to OUTPUT instead of the standard output'
-    )
+    parser.add_argument('--output', default=_DEFAULT_OUTPUT,
+                        help='write the XML data to OUTPUT instead of the standard output')
     parser.add_argument(
         '--config-file', default=_DEFAULT_CONFIG_FILE,
-        help='file name to write/load the configuration to/from (default: '
-             '%(default)s)'
-    )
-    parser.add_argument(
-        '--list-channels', action='store_true',
-        help='output a list of all channels that data is available for (in '
-             'xmltv format)'
+        help='file name to write/load the configuration to/from (default: %(default)s)'
     )
 
     log_level_group = parser.add_mutually_exclusive_group()
@@ -376,8 +338,7 @@ def _parse_cli_args():
                                  help='only print error-messages on STDERR')
     log_level_group.add_argument(
         '--debug', action='store_true',
-        help='provide more information on progress to stderr to help in '
-             'debugging'
+        help='provide more information on progress to stderr to help in debugging'
     )
 
     return parser.parse_args()
@@ -409,9 +370,7 @@ def _write_configuration(xmltv_ids, config_file=_DEFAULT_CONFIG_FILE):
 
 
 def _configure(available_channels, config_file=_DEFAULT_CONFIG_FILE):
-    """Prompt channels to configure and write them into the configuration
-    file.
-    """
+    """Prompt channels to configure and write them into the configuration file."""
 
     xmltv_ids = []
     answers = ['yes', 'no', 'all', 'none']
@@ -423,17 +382,12 @@ def _configure(available_channels, config_file=_DEFAULT_CONFIG_FILE):
         display_name = available_channels[xmltv_id]['display_name']
         if not select_all and not select_none:
             while True:
-                prompt = '{} [{} (default=no)] '.format(display_name,
-                                                        ','.join(answers))
+                prompt = '{} [{} (default=no)] '.format(display_name, ','.join(answers))
                 answer = input(prompt).strip()
                 if answer in answers or answer == '':
                     break
-                print(
-                    'invalid response, please choose one of {}'.format(
-                        ','.join(answers)
-                    ),
-                    file=sys.stderr
-                )
+                print('invalid response, please choose one of {}'.format(','.join(answers)),
+                      file=sys.stderr)
             select_all = answer == 'all'
             select_none = answer == 'none'
         if select_all or answer == 'yes':
@@ -475,8 +429,7 @@ def _main():
 
     logger.setLevel(log_level)
 
-    sfr = SFRXMLTVGrabber(generator=_PROGRAM, generator_url=__url__,
-                          logger=logger)
+    sfr = SFRXMLTVGrabber(generator=_PROGRAM, generator_url=__url__, logger=logger)
     available_channels = sfr.get_available_channels()
 
     logger.info('Using configuration file %s', args.config_file)
@@ -486,20 +439,15 @@ def _main():
         sys.exit()
 
     if not os.path.isfile(args.config_file):
-        logger.error(
-            'You need to configure the grabber by running it with --configure'
-        )
+        logger.error('You need to configure the grabber by running it with --configure')
         sys.exit(1)
 
     xmltv_ids = _read_configuration(args.config_file)
     if not xmltv_ids:
-        logger.error(
-            'Configuration file %s is empty, delete and run with --configure',
-            args.config_file
-        )
+        logger.error('Configuration file %s is empty, delete and run with --configure',
+                     args.config_file)
 
-    sfr.write_xmltv(xmltv_ids, args.output, days=args.days, offset=args.offset,
-                    channels_only=args.list_channels)
+    sfr.write_xmltv(xmltv_ids, args.output, days=args.days, offset=args.offset)
 
 if __name__ == '__main__':
     _main()
