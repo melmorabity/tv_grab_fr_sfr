@@ -125,6 +125,9 @@ class SFRXMLTVGrabber:
     def _parse_channel_xmltv(self, xmltv_id):
         """Convert a channel identified by its XMLTV ID to a XMLTV Element object."""
 
+        if xmltv_id not in self._channels:
+            return None
+
         display_name = self._channels[xmltv_id]['display_name']
 
         channel_xml = Element('channel', id=xmltv_id)
@@ -234,7 +237,8 @@ class SFRXMLTVGrabber:
             for sfr_program_xml in self._get_programs(date).iter(tag='programme'):
                 # Only keep programs for selected channels
                 sfr_id = sfr_program_xml.get('channel')
-                if self._sfr_to_xmltv_id(sfr_id) not in xmltv_ids:
+                xmltv_id = self._sfr_to_xmltv_id(sfr_id)
+                if xmltv_id not in xmltv_ids or xmltv_id not in self._channels:
                     continue
 
                 program_xml = self._parse_program_xmltv(sfr_program_xml)
@@ -256,7 +260,9 @@ class SFRXMLTVGrabber:
 
         # Keep only channels which have programs actually in the XMLTV result
         for xmltv_id in valid_xmltv_ids:
-            root_xml.append(self._parse_channel_xmltv(xmltv_id))
+            xmltv_channel = self._parse_channel_xmltv(xmltv_id)
+            if xmltv_channel is not None:
+                root_xml.append(self._parse_channel_xmltv(xmltv_id))
 
         root_xml.extend(programs_xml)
 
@@ -272,7 +278,7 @@ class SFRXMLTVGrabber:
 
 
 _PROGRAM = 'tv_grab_fr_sfr'
-__version__ = '1.0'
+__version__ = '2.1'
 __url__ = 'https://github.com/melmorabity/tv_grab_fr_sfr'
 
 _DESCRIPTION = 'France (SFR)'
